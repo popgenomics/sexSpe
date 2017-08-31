@@ -177,18 +177,112 @@ void get_sexes(const std::vector < std::vector < std::vector < float >>> & pop, 
 
 
 void get_fitness(const std::vector < std::vector < std::vector <float>>> & pop, const std::vector <size_t> & males, const std::vector <size_t> & females, std::vector <float> & male_fitness, std::vector <float> & female_fitness, const unsigned int & N_diplo, const unsigned int & N_SA, const unsigned int & N_SC, const std::vector <float> & param_fitness){
+	/*
+	optimal level of expression of a gene in a sex:
+		e_m_opt [0]
+		e_f_opt [1]
+	optimum genic values:
+		loci SA:
+			g_m_opt_SA [2]
+			g_f_opt_SA [3]
+		loci SC:
+			g_m_opt_SC [4]
+			g_f_opt_SC [5]
+	sex-specific strength of selection:
+		on expression:
+			s_m_e [6]
+			s_f_e [7]
+		on genic value:
+			s_m_g [8]
+			s_f_g [9]
+	*/
+	
 	size_t i(0);
-	float fitness(0.0);
+	size_t j(0);
+	const float e_m_opt(param_fitness[0]);
+	const float e_f_opt(param_fitness[1]);
+	const float g_m_opt_SA(param_fitness[2]);
+	const float g_f_opt_SA(param_fitness[3]);
+	const float g_m_opt_SC(param_fitness[4]);
+	const float g_f_opt_SC(param_fitness[5]);
+	const float s_m_e(param_fitness[6]);
+	const float s_f_e(param_fitness[7]);
+	const float s_m_g(param_fitness[8]);
+	const float s_f_g(param_fitness[9]);
+	
+	float e_1_glob(0.0);
+	float e_2_glob(0.0);
+	float e_1_sex(0.0);
+	float e_2_sex(0.0);
+	float e_tot_sex(0.0);
+	float g_1(0.0);
+	float g_2(0.0);
+
+	float fitness(1.0);
 	/* fills the vectors from 'void evolve_pop()':
 		male_fitness: vector of size n_males. Entry == male fitness 
 		female_fitness: vector of size n_females. Entry == female fitness 
 	*/
 	
-	for(i=0; i<males.size(); ++i){
-		fitness = 0.0;
+	for(i=0; i<males.size(); ++i){ // loop over males
+		fitness = 1.0;
+		e_1_glob = pop[males[i]][0][2];
+		e_2_glob = pop[males[i]][1][2];
+		// loop over loci SA:
+		for(j=5; j<5+N_SA*2; j+= 2){
+			e_1_sex = pop[males[i]][0][j] * e_1_glob;
+			e_2_sex = pop[males[i]][1][j] * e_2_glob;
+			e_tot_sex = e_1_sex + e_2_sex;
+			g_1 = pop[males[i]][0][j+1];
+			g_2 = pop[males[i]][1][j+1];
+			fitness *= exp(-1 * s_m_g * e_1_sex * pow(g_1 - g_m_opt_SA, 2));
+			fitness *= exp(-1 * s_m_g * e_2_sex * pow(g_2 - g_m_opt_SA, 2));
+			fitness *= exp(-1 * s_m_e * pow(e_tot_sex - e_m_opt, 2));
+		}
 		
-	}
+		// loop over loci SC:
+		for(j=5+N_SA*2; j<5+N_SA*2+N_SC*2; j+= 2){
+			e_1_sex = pop[males[i]][0][j] * e_1_glob;
+			e_2_sex = pop[males[i]][1][j] * e_2_glob;
+			e_tot_sex = e_1_sex + e_2_sex;
+			g_1 = pop[males[i]][0][j+1];
+			g_2 = pop[males[i]][1][j+1];
+			fitness *= exp(-1 * s_m_g * e_1_sex * pow(g_1 - g_m_opt_SC, 2));
+			fitness *= exp(-1 * s_m_g * e_2_sex * pow(g_2 - g_m_opt_SC, 2));
+			fitness *= exp(-1 * s_m_e * pow(e_tot_sex - e_m_opt, 2));
+		}
+		male_fitness.push_back(fitness);
+	} // end of loop over males
 
+	for(i=0; i<females.size(); ++i){ // loop over females
+		fitness = 1.0;
+		e_1_glob = pop[females[i]][0][2];
+		e_2_glob = pop[females[i]][1][2];
+		// loop over loci SA:
+		for(j=5; j<5+N_SA*2; j+= 2){
+			e_1_sex = pop[females[i]][0][j] * e_1_glob;
+			e_2_sex = pop[females[i]][1][j] * e_2_glob;
+			e_tot_sex = e_1_sex + e_2_sex;
+			g_1 = pop[females[i]][0][j+1];
+			g_2 = pop[females[i]][1][j+1];
+			fitness *= exp(-1 * s_f_g * e_1_sex * pow(g_1 - g_f_opt_SA, 2));
+			fitness *= exp(-1 * s_f_g * e_2_sex * pow(g_2 - g_f_opt_SA, 2));
+			fitness *= exp(-1 * s_f_e * pow(e_tot_sex - e_f_opt, 2));
+		}
+		
+		// loop over loci SC:
+		for(j=5+N_SA*2; j<5+N_SA*2+N_SC*2; j+= 2){
+			e_1_sex = pop[females[i]][0][j] * e_1_glob;
+			e_2_sex = pop[females[i]][1][j] * e_2_glob;
+			e_tot_sex = e_1_sex + e_2_sex;
+			g_1 = pop[females[i]][0][j+1];
+			g_2 = pop[females[i]][1][j+1];
+			fitness *= exp(-1 * s_f_g * e_1_sex * pow(g_1 - g_f_opt_SC, 2));
+			fitness *= exp(-1 * s_f_g * e_2_sex * pow(g_2 - g_f_opt_SC, 2));
+			fitness *= exp(-1 * s_f_e * pow(e_tot_sex - e_f_opt, 2));
+		}
+		female_fitness.push_back(fitness);
+	} // end of loop over females
 } 
 
 
