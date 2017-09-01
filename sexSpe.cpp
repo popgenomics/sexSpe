@@ -9,14 +9,20 @@
 #include <random>
 #include <time.h>
 
+void testFunction();
 
 void initiate_pop(std::vector < std::vector < std::vector < float >>> & pop, const unsigned int & N_diplo, const unsigned int & N_SA, const unsigned int & N_SC);
-void evolve_pop(std::vector < std::vector < std::vector < float >>> & pop, const unsigned int & N_diplo, const unsigned int & N_SA, const unsigned int & N_SC, const std::vector <float> & param_fitness);
+void evolve_pop(std::vector < std::vector < std::vector < float >>> & pop, const unsigned int & N_diplo, const unsigned int & N_reprod_males, const unsigned int & N_SA, const unsigned int & N_SC, const std::vector <float> & param_fitness);
 void print_pop(std::vector < std::vector < std::vector < float >>> & pop, const unsigned int & N_diplo, const unsigned int & N_SA, const unsigned int & N_SC);
 void get_sexes(const std::vector < std::vector < std::vector < float >>> & pop, std::vector <size_t> & sexes, std::vector <size_t> & males, std::vector <size_t> & females);
 void get_fitness(const std::vector < std::vector < std::vector <float>>> & pop, const std::vector <size_t> & males, const std::vector <size_t> & females, std::vector <float> & male_fitness, std::vector <float> & female_fitness, const unsigned int & N_diplo, const unsigned int & N_SA, const unsigned int & N_SC, const std::vector <float> & param_fitness);
-void get_parents(std::vector <size_t> & mothers, std::vector <size_t> & females, const std::vector <float> & female_fitness, const unsigned int & N_diplo);
-void weighted_random_sampling(const std::vector <float> & weights, const unsigned int & nSamples, std::vector <size_t> & sample);
+void get_fathers(std::vector <size_t> & fathers, std::vector <size_t> & males, const std::vector <float> & male_fitness, const unsigned int & N_diplo, const unsigned int & N_reprod_males);
+void get_mothers(std::vector <size_t> & mothers, std::vector <size_t> & females, const std::vector <float> & female_fitness, const unsigned int & N_diplo);
+
+
+float getReal(const int & from, const int & to);
+void sample_with(const std::vector <float> & weights, const unsigned int & nSamples, std::vector <size_t> & sample);
+void sample_without(const std::vector <float> & weights, const unsigned int & nSamples, std::vector <size_t> & sample);
 
 int main(int argc, char* argv[]){
 	const unsigned int N_diplo(std::stoi(argv[1]));
@@ -49,12 +55,11 @@ int main(int argc, char* argv[]){
 	std::vector < std::vector < std::vector < float >>> pop; // [ind][haplotype][alleles at different loci]
 
 	initiate_pop(pop, N_diplo, N_SA, N_SC);
-	print_pop(pop, N_diplo, N_SA, N_SC);
+	//print_pop(pop, N_diplo, N_SA, N_SC);
 
 	for(generation=0; generation<nGenerations; ++generation){
-		evolve_pop(pop, N_diplo, N_SA, N_SC, param_fitness);
+		evolve_pop(pop, N_diplo, N_reprod_males, N_SA, N_SC, param_fitness);
 	}	
-	
 
 	return(0);
 }
@@ -139,7 +144,7 @@ void print_pop(std::vector < std::vector < std::vector < float >>> & pop, const 
 }
 
 
-void evolve_pop(std::vector < std::vector < std::vector < float >>> & pop, const unsigned int & N_diplo, const unsigned int & N_SA, const unsigned int & N_SC, const std::vector <float> & param_fitness){
+void evolve_pop(std::vector < std::vector < std::vector < float >>> & pop, const unsigned int & N_diplo, const unsigned int & N_reprod_males, const unsigned int & N_SA, const unsigned int & N_SC, const std::vector <float> & param_fitness){
 	std::vector <size_t> males;
 	std::vector <size_t> females;
 	std::vector <size_t> fathers;
@@ -150,8 +155,8 @@ void evolve_pop(std::vector < std::vector < std::vector < float >>> & pop, const
 
 	get_sexes(pop, sexes, males, females);
 	get_fitness(pop, males, females, male_fitness, female_fitness, N_diplo, N_SA, N_SC, param_fitness);
-	get_parents(fathers, males, male_fitness, N_diplo);
-	get_parents(mothers, females, female_fitness, N_diplo);
+	get_fathers(fathers, males, male_fitness, N_diplo, N_reprod_males);
+	get_mothers(mothers, females, female_fitness, N_diplo);
 }
 
 
@@ -286,12 +291,75 @@ void get_fitness(const std::vector < std::vector < std::vector <float>>> & pop, 
 } 
 
 
-void get_parents(std::vector <size_t> & mothers, std::vector <size_t> & females, const std::vector <float> & female_fitness, const unsigned int & N_diplo){
+void get_fathers(std::vector <size_t> & fathers, std::vector <size_t> & males, const std::vector <float> & male_fitness, const unsigned int & N_diplo, const unsigned int & N_reprod_males){
+	size_t i(0);
 	
+	std::vector <float> male_fitness_tmp;
+	std::vector <size_t> fathers_tmp;
+	std::vector <size_t> fathers_tmp2;
+
+	sample_without(male_fitness, N_reprod_males, fathers_tmp);
+
+	for(i=0; i<N_reprod_males; ++i){
+		male_fitness_tmp.push_back(male_fitness[fathers_tmp[i]]);
+	}
+
+	sample_with(male_fitness_tmp, N_diplo, fathers_tmp2);
+	
+	for(i=0; i<fathers_tmp2.size(); ++i){
+		fathers.push_back(males[fathers_tmp[fathers_tmp2[i]]]);
+	}
+	
+
+	std::cout << "males: ";
+	for(i=0; i<males.size(); ++i){
+		std::cout << males[i] << " ";
+	}
+	std::cout << std::endl;
+	
+	std::cout << "male fitness: ";
+	for(i=0; i<male_fitness.size(); ++i){
+		std::cout << male_fitness[i] << " ";
+	}
+	std::cout << std::endl;
+	
+	std::cout << "reproductive males: ";
+	for(i=0; i<N_reprod_males; ++i){
+		std::cout << males[fathers_tmp[i]] << " ";
+	}
+	std::cout << std::endl;
+
+	
+	
+	std::cout << "fitness of reproductive males: ";
+	for(i=0; i<male_fitness_tmp.size(); ++i){
+		std::cout << male_fitness_tmp[i] << " ";
+	}
+	std::cout << std::endl;
+	
+	std::cout << "fathers: ";
+	for(i=0; i<N_diplo; ++i){
+		std::cout << fathers[i] << " ";
+	}
+	std::cout << std::endl;
+	std::cout << std::endl;
 }
 
 
-void weighted_random_sampling(const std::vector <float> & weights, const unsigned int & nSamples, std::vector <size_t> & sample){
+void get_mothers(std::vector <size_t> & mothers, std::vector <size_t> & females, const std::vector <float> & female_fitness, const unsigned int & N_diplo){
+	size_t i(0);
+	
+	std::vector <size_t> mothers_tmp;
+	
+	sample_with(female_fitness, N_diplo*2, mothers_tmp);
+	
+	for(i=0; i<mothers_tmp.size(); ++i){
+		mothers.push_back(females[mothers_tmp[i]]);
+	}
+}
+
+
+void sample_with(const std::vector <float> & weights, const unsigned int & nSamples, std::vector <size_t> & sample){
         /*
         returns a vector of positions (size_t) corresponding to the sampled positions.
         */
@@ -319,4 +387,70 @@ void weighted_random_sampling(const std::vector <float> & weights, const unsigne
         }
 }
 
+
+void sample_without(const std::vector <float> & weights, const unsigned int & nSamples, std::vector <size_t> & sample){
+        /*
+        returns a vector of positions (size_t) corresponding to the sampled positions.
+        */
+	if(nSamples > weights.size()){
+		std::cout << "Error in weighted_random_sampling_without_replacement: the bag is smaller than the sample size" << std::endl;
+		exit (EXIT_FAILURE);
+	}
+        size_t i(0);
+        size_t j(0);
+        float sum(0.0);
+        float random(0.0);
+        float cumul(0.0);
+	
+	std::vector <size_t> positions;
+	
+	for(i=0; i<weights.size(); ++i){
+		positions.push_back(i);
+		sum += weights[positions[i]];
+	}
+		
+        for(i=0; i<nSamples; ++i){
+
+                random = getReal(0, sum);
+                cumul = 0.0;
+                for(j=0; j<positions.size(); ++j){
+                        cumul += weights[positions[j]];
+                        if( random <= cumul){
+				sample.push_back(positions[j]); // fills the output
+				positions.erase(std::remove(positions.begin(), positions.end(), positions[j]), positions.end()); // remove the sampled entry from the bag
+				sum -= weights[positions[j]];
+				break;
+			}
+                }
+        }
+}
+
+
+float getReal(const int & from, const int & to){
+	// returns a real in the [from, to] interval
+        std::random_device rd;
+        std::mt19937 gen(rd());
+       	std::uniform_real_distribution<float> distribution_real(from, to);
+	return( distribution_real(rd) );
+}
+
+
+void testFunction(){
+	std::vector <float> poids;
+	std::vector <size_t> res;
+	size_t i(0);
+
+	for(i=0; i<10; ++i){
+		poids.push_back(i*100.0);
+	}
+	
+	const unsigned int nRes(5);
+	
+	sample_without(poids, nRes, res);
+
+	for(i=0; i<res.size(); ++i){
+		std::cout << res[i] << " ";
+	}
+	std::cout << std::endl;
+}
 
