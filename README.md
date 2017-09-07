@@ -13,6 +13,7 @@ g++ sexSpe.cpp -std=c++17 -O3 -o sexSpe
 **arg5**: number of reproductive males (__integer__)   
   
 ### TODO  
-At that time, mutation rate is hard-coded and equal to nLocus (2 + 2.SA + 2.SC) multiplied by 0.00001  
+At that time, mutation rate is hard-coded and equal to **nLocus x 0.00001**  
+where __nLocus__ is equal to: 1 (modifier of recombination) + 1 (modifier of expression) + 2.(1 + SA + SC)  
 Inversion rate is also hard-coded and fixed to 0.00001    
 
