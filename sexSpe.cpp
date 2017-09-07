@@ -14,7 +14,8 @@ static std::random_device rd;
 static std::mt19937 rng(rd());
 
 void initiate_pop(std::vector < std::vector < std::vector < float >>> & pop, const unsigned int & N_diplo, const unsigned int & N_SA, const unsigned int & N_SC);
-void evolve_pop(std::vector < std::vector < std::vector < float >>> & pop, const unsigned int & N_diplo, const unsigned int & N_reprod_males, const unsigned int & N_SA, const unsigned int & N_SC, const std::vector <float> & param_fitness);
+void initiate_newPop(std::vector < std::vector < std::vector < float >>> & new_pop, const unsigned int & N_diplo);
+void evolve_pop(std::vector < std::vector < std::vector < float >>> & pop, const unsigned int & N_diplo, const unsigned int & N_reprod_males, const unsigned int & N_SA, const unsigned int & N_SC, const std::vector <float> & param_fitness,   const float & mutation_rate, const float & recombination_rate, const size_t & nLocus);
 void print_pop(std::vector < std::vector < std::vector < float >>> & pop, const unsigned int & N_diplo, const unsigned int & N_SA, const unsigned int & N_SC);
 void get_sexes(const std::vector < std::vector < std::vector < float >>> & pop, std::vector <size_t> & sexes, std::vector <size_t> & males, std::vector <size_t> & females);
 void get_fitness(const std::vector < std::vector < std::vector <float>>> & pop, const std::vector <size_t> & males, const std::vector <size_t> & females, std::vector <float> & male_fitness, std::vector <float> & female_fitness, const unsigned int & N_diplo, const unsigned int & N_SA, const unsigned int & N_SC, const std::vector <float> & param_fitness);
@@ -23,6 +24,8 @@ void get_mothers(std::vector <size_t> & mothers, const std::vector <size_t> & fe
 void sampling(const std::vector <float> & weights, const unsigned int & nSamples, std::vector <size_t> & sample, const bool & replace);
 size_t getSampledPosition(const std::vector <float> & urn);
 
+void make_babies(const std::vector <size_t> & fathers, const std::vector <size_t> & mothers, std::vector < std::vector < std::vector < float >>> & pop, std::vector < std::vector < std::vector < float >>> & new_pop, const unsigned int & N_diplo, const float & mutation_rate, const float & recombination_rate, const size_t & nLocus);
+void is_recombination(const float & recombination_rate, int & test_recombination, size_t & pos_recombination, const size_t & nLocus);
 
 
 int main(int argc, char* argv[]){
@@ -31,6 +34,10 @@ int main(int argc, char* argv[]){
 	const unsigned int N_SC(std::stoi(argv[3]));
 	const size_t nGenerations(std::stoi(argv[4]));
 	const unsigned int N_reprod_males(std::stoi(argv[5]));
+
+	const size_t nLocus(3 + (N_SA+N_SC)*2); // sex_det / recomb / expression / loc_xp_ntrl / genicV_ntrl / etc ...
+	const float mutation_rate( (nLocus-1) * 0.00001); // mutation_rate = nLocus x proba_of_mutation_of_a_locus
+	const float recombination_rate( (nLocus-1) * 0.00001); // mutation_rate = nLocus x proba_of_mutation_of_a_locus
 
 	std::vector <float> param_fitness;
 	// optimal level of expression of a gene in a sex:
@@ -56,14 +63,116 @@ int main(int argc, char* argv[]){
 	std::vector < std::vector < std::vector < float >>> pop; // [ind][haplotype][alleles at different loci]
 
 	initiate_pop(pop, N_diplo, N_SA, N_SC);
-	//print_pop(pop, N_diplo, N_SA, N_SC);
 
 	for(generation=0; generation<nGenerations; ++generation){
-		evolve_pop(pop, N_diplo, N_reprod_males, N_SA, N_SC, param_fitness);
+	/*	std::cout << "Generation: " << generation << std::endl;
+	std::cout << "Before: " << std::endl;
+	print_pop(pop, N_diplo, N_SA, N_SC);*/
+		evolve_pop(pop, N_diplo, N_reprod_males, N_SA, N_SC, param_fitness, mutation_rate, recombination_rate, nLocus);
+/*	std::cout <<  std::endl << "After: " << std::endl;
+	print_pop(pop, N_diplo, N_SA, N_SC);
+	std::cout << std::endl;*/
 	}	
 
 	return(0);
 }
+
+//void sample_with(const std::vector <float> & weights, const unsigned int & nSamples, std::vector <size_t> & sample){
+//        /*
+//        returns a vector of positions (size_t) corresponding to the sampled positions.
+//        */
+//        size_t i(0);
+//        size_t j(0);
+//        float sum(0.0);
+//        float random(0.0);
+//        float cumul(0.0);
+//
+//        for(i=0; i<weights.size(); ++i){
+//                sum += weights[i];
+//        }
+//
+//        std::uniform_real_distribution<float> distribution_real(0, sum);
+//
+//        for(i=0; i<nSamples; ++i){
+//                random = distribution_real(rng);
+//                cumul = 0.0;
+//                for(j=0; j<weights.size(); ++j){
+//                        cumul += weights[j];
+//                        if( random <= cumul){ sample.push_back(j); break;}
+//                }
+//        }
+//}
+
+//void sample_without(const std::vector <float> & weights, const unsigned int & nSamples, std::vector <size_t> & sample){
+//        /*
+//        fills the vector of positions named 'sample' (size_t) with positions corresponding of the sampled weights.
+//        */
+//	assert(nSamples <= weights.size());
+//	std::vector <float> cumul_weights;
+//	std::vector <size_t> positions;
+//	size_t i(0);
+//	size_t j(0);
+//	size_t position_tmp(0);
+//	float cumul(0.0);
+//	float random_value(0.0);
+//
+//	for(i=0; i<weights.size(); ++i){
+//		cumul += weights[i];
+//		cumul_weights.push_back(cumul);
+//		positions.push_back(i);
+//		++j;
+//	}
+//
+//	i=0;
+//	do{
+//		--j;
+//		random_value = getReal(0.0, cumul_weights[j]);
+//		position_tmp = getPosition(cumul_weights, random_value);
+//
+//		assert(position_tmp<positions.size());
+//
+//		sample.push_back(positions[position_tmp]);
+//
+//		clean_vectors(weights, cumul_weights, positions, position_tmp);
+//		++i;
+//	}while(i<nSamples);
+//}
+
+
+/*size_t getPosition(const std::vector <float> & cumul_weights, const float & random_value){
+	size_t pos(0);
+	float cumul(0.0);
+
+	size_t i(0);
+	
+	while(random_value > cumul_weights[pos]){
+		++pos;
+	}
+
+	return(pos);
+}
+*/
+
+
+//float getReal(const float & from, const float & to){
+	// returns a real in the [from, to] interval
+//       	std::uniform_real_distribution<float> distribution_real(from, to);
+//	return( distribution_real(rng) );
+//}
+
+
+/*void clean_vectors(const std::vector <float> & weights, std::vector <float> & cumul_weights, std::vector <size_t> & positions, const size_t & position_tmp){
+	size_t i(0);
+	float cumul(0.0);
+	positions.erase(positions.begin()+position_tmp);
+	cumul_weights.clear();
+
+	for(i=0; i<positions.size(); ++i){
+		cumul += weights[ positions[i] ];
+		cumul_weights.push_back(cumul);
+	}	
+}
+*/
 
 void initiate_pop(std::vector < std::vector < std::vector < float >>> & pop, const unsigned int & N_diplo, const unsigned int & N_SA, const unsigned int & N_SC){
 	/*
@@ -143,7 +252,7 @@ void print_pop(std::vector < std::vector < std::vector < float >>> & pop, const 
 }
 
 
-void evolve_pop(std::vector < std::vector < std::vector < float >>> & pop, const unsigned int & N_diplo, const unsigned int & N_reprod_males, const unsigned int & N_SA, const unsigned int & N_SC, const std::vector <float> & param_fitness){
+void evolve_pop(std::vector < std::vector < std::vector < float >>> & pop, const unsigned int & N_diplo, const unsigned int & N_reprod_males, const unsigned int & N_SA, const unsigned int & N_SC, const std::vector <float> & param_fitness, const float & mutation_rate, const float & recombination_rate, const size_t & nLocus){
 	std::vector <size_t> males;
 	std::vector <size_t> females;
 	std::vector <size_t> fathers;
@@ -151,11 +260,25 @@ void evolve_pop(std::vector < std::vector < std::vector < float >>> & pop, const
 	std::vector <size_t> sexes; // sexes of individuals within the population
 	std::vector <float> male_fitness;
 	std::vector <float> female_fitness;
+	std::vector < std::vector < std::vector < float >>>  new_pop;
+
+	initiate_newPop(new_pop, N_diplo);
 
 	get_sexes(pop, sexes, males, females);
+	assert( males.size() != 0);
+	assert( females.size() != 0);
+
 	get_fitness(pop, males, females, male_fitness, female_fitness, N_diplo, N_SA, N_SC, param_fitness);
-	get_fathers(fathers, males, male_fitness, N_diplo, N_reprod_males);
+	
 	get_mothers(mothers, females, female_fitness, N_diplo);
+	get_fathers(fathers, males, male_fitness, N_diplo, N_reprod_males);
+	
+	make_babies(fathers, mothers, pop, new_pop, N_diplo, mutation_rate, recombination_rate, nLocus);
+
+/*	std::cout << "New pop: " << new_pop[0][0][2] << std::endl;	
+	std::cout << pop[0][0][2] << " -Pop- ";	
+	//pop = new_pop;
+	std::cout << pop[0][0][2] << std::endl;
 
 	size_t i(0);
 	std::cout << "males:\t\t";
@@ -188,6 +311,15 @@ void evolve_pop(std::vector < std::vector < std::vector < float >>> & pop, const
 		std::cout << mothers[i] << " "; 
 	}
 	std::cout << std::endl << std::endl;
+*/	
+	males.clear();
+	females.clear();
+	fathers.clear();
+	mothers.clear();
+	sexes.clear(); // sexes of individuals within the population
+	male_fitness.clear();
+	female_fitness.clear();
+	new_pop.clear();
 }
 
 
@@ -417,99 +549,60 @@ size_t getSampledPosition(const std::vector <float> & urn){
 }
 
 
-//void sample_with(const std::vector <float> & weights, const unsigned int & nSamples, std::vector <size_t> & sample){
-//        /*
-//        returns a vector of positions (size_t) corresponding to the sampled positions.
-//        */
-//        size_t i(0);
-//        size_t j(0);
-//        float sum(0.0);
-//        float random(0.0);
-//        float cumul(0.0);
-//
-//        for(i=0; i<weights.size(); ++i){
-//                sum += weights[i];
-//        }
-//
-//        std::uniform_real_distribution<float> distribution_real(0, sum);
-//
-//        for(i=0; i<nSamples; ++i){
-//                random = distribution_real(rng);
-//                cumul = 0.0;
-//                for(j=0; j<weights.size(); ++j){
-//                        cumul += weights[j];
-//                        if( random <= cumul){ sample.push_back(j); break;}
-//                }
-//        }
-//}
 
-//void sample_without(const std::vector <float> & weights, const unsigned int & nSamples, std::vector <size_t> & sample){
-//        /*
-//        fills the vector of positions named 'sample' (size_t) with positions corresponding of the sampled weights.
-//        */
-//	assert(nSamples <= weights.size());
-//	std::vector <float> cumul_weights;
-//	std::vector <size_t> positions;
-//	size_t i(0);
-//	size_t j(0);
-//	size_t position_tmp(0);
-//	float cumul(0.0);
-//	float random_value(0.0);
-//
-//	for(i=0; i<weights.size(); ++i){
-//		cumul += weights[i];
-//		cumul_weights.push_back(cumul);
-//		positions.push_back(i);
-//		++j;
-//	}
-//
-//	i=0;
-//	do{
-//		--j;
-//		random_value = getReal(0.0, cumul_weights[j]);
-//		position_tmp = getPosition(cumul_weights, random_value);
-//
-//		assert(position_tmp<positions.size());
-//
-//		sample.push_back(positions[position_tmp]);
-//
-//		clean_vectors(weights, cumul_weights, positions, position_tmp);
-//		++i;
-//	}while(i<nSamples);
-//}
-
-
-/*size_t getPosition(const std::vector <float> & cumul_weights, const float & random_value){
-	size_t pos(0);
-	float cumul(0.0);
-
+void initiate_newPop(std::vector < std::vector < std::vector < float >>> & new_pop, const unsigned int & N_diplo){
 	size_t i(0);
+	size_t j(0);
+	std::vector < std::vector <float>> individual;
+	std::vector <float> haplotype;
 	
-	while(random_value > cumul_weights[pos]){
-		++pos;
+	for(i=0; i<N_diplo; ++i){
+		new_pop.push_back(individual);
+		for(j=0; j<2; ++j){
+			new_pop[i].push_back(haplotype);
+		}
+	}
+}
+
+
+void make_babies(const std::vector <size_t> & fathers, const std::vector <size_t> & mothers, std::vector < std::vector < std::vector < float >>> & pop, std::vector < std::vector < std::vector < float >>> & new_pop, const unsigned int & N_diplo, const float & mutation_rate, const float & recombination_rate, const size_t & nLocus){
+	size_t i(0);
+	int gamete_id(0);
+
+	int test_mutation(0);
+	int test_recombination(0);
+	size_t pos_recombination(0);
+
+	std::vector <float> haplotype;
+
+	std::uniform_int_distribution<> distribution_uniform(0, 1); // chose one of the two possible gametes
+	std::binomial_distribution<int> distribution(1, mutation_rate); // test if there is a mutation event along the gamete
+
+	for(i=0; i<N_diplo; ++i){
+		// within father
+		is_recombination(recombination_rate, test_recombination, pos_recombination, nLocus);
+		gamete_id = distribution_uniform(rng);	
+		new_pop[i][0] = pop[fathers[i]][gamete_id];
+		
+		// within mother
+		gamete_id = distribution_uniform(rng);
+		new_pop[i][1] = pop[mothers[i]][gamete_id];
 	}
 
-	return(pos);
+	for(i=0; i<N_diplo; ++i){
+		pop[i] = new_pop[i];
+	}
 }
-*/
 
 
-//float getReal(const float & from, const float & to){
-	// returns a real in the [from, to] interval
-//       	std::uniform_real_distribution<float> distribution_real(from, to);
-//	return( distribution_real(rng) );
-//}
-
-
-/*void clean_vectors(const std::vector <float> & weights, std::vector <float> & cumul_weights, std::vector <size_t> & positions, const size_t & position_tmp){
-	size_t i(0);
-	float cumul(0.0);
-	positions.erase(positions.begin()+position_tmp);
-	cumul_weights.clear();
-
-	for(i=0; i<positions.size(); ++i){
-		cumul += weights[ positions[i] ];
-		cumul_weights.push_back(cumul);
-	}	
+void is_recombination(const float & recombination_rate, int & test_recombination, size_t & pos_recombination, const size_t & nLocus){
+	std::binomial_distribution<int> distribution(1, recombination_rate); // test if there is a recomb event along the gamete
+	test_recombination = distribution(rng);
+	
+	if( test_recombination == 1 ){
+		std::uniform_int_distribution<> distribution_position_locus(0, (nLocus-3)/2 - 1); // chose one of the two possible gametes
+		pos_recombination =  distribution_position_locus(rng);
+		std::cout << "recombination before locus " << pos_recombination << std::endl;
+	}
 }
-*/
+
