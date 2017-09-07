@@ -15,7 +15,7 @@ static std::mt19937 rng(rd());
 
 void initiate_pop(std::vector < std::vector < std::vector < float >>> & pop, const unsigned int & N_diplo, const unsigned int & N_SA, const unsigned int & N_SC);
 void initiate_newPop(std::vector < std::vector < std::vector < float >>> & new_pop, const unsigned int & N_diplo);
-void evolve_pop(std::vector < std::vector < std::vector < float >>> & pop, const unsigned int & N_diplo, const unsigned int & N_reprod_males, const unsigned int & N_SA, const unsigned int & N_SC, const std::vector <float> & param_fitness,   const float & mutation_rate, const float & recombination_rate, const size_t & nLocus);
+void evolve_pop(std::vector < std::vector < std::vector < float >>> & pop, const unsigned int & N_diplo, const unsigned int & N_reprod_males, const unsigned int & N_SA, const unsigned int & N_SC, const std::vector <float> & param_fitness, const float & mutation_rate, const float & inversion_rate, const size_t & nLocus);
 void print_pop(std::vector < std::vector < std::vector < float >>> & pop, const unsigned int & N_diplo, const unsigned int & N_SA, const unsigned int & N_SC);
 void get_sexes(const std::vector < std::vector < std::vector < float >>> & pop, std::vector <size_t> & sexes, std::vector <size_t> & males, std::vector <size_t> & females);
 void get_fitness(const std::vector < std::vector < std::vector <float>>> & pop, const std::vector <size_t> & males, const std::vector <size_t> & females, std::vector <float> & male_fitness, std::vector <float> & female_fitness, const unsigned int & N_diplo, const unsigned int & N_SA, const unsigned int & N_SC, const std::vector <float> & param_fitness);
@@ -24,8 +24,10 @@ void get_mothers(std::vector <size_t> & mothers, const std::vector <size_t> & fe
 void sampling(const std::vector <float> & weights, const unsigned int & nSamples, std::vector <size_t> & sample, const bool & replace);
 size_t getSampledPosition(const std::vector <float> & urn);
 
-void make_babies(const std::vector <size_t> & fathers, const std::vector <size_t> & mothers, std::vector < std::vector < std::vector < float >>> & pop, std::vector < std::vector < std::vector < float >>> & new_pop, const unsigned int & N_diplo, const float & mutation_rate, const float & recombination_rate, const size_t & nLocus);
+void make_babies(const std::vector <size_t> & fathers, const std::vector <size_t> & mothers, std::vector < std::vector < std::vector < float >>> & pop, std::vector < std::vector < std::vector < float >>> & new_pop, const unsigned int & N_diplo, const float & mutation_rate, const float & inversion_rate, const size_t & nLocus);
 void is_recombination(const float & recombination_rate, int & test_recombination, size_t & pos_recombination, const size_t & nLocus);
+void recombination(const std::vector < std::vector <float >> & father, const size_t & pos_recombination, const int & gamete_id, std::vector <float> & gamete);
+void mutation(std::vector <float> & gamete, const size_t & nLocus);
 
 
 int main(int argc, char* argv[]){
@@ -37,7 +39,7 @@ int main(int argc, char* argv[]){
 
 	const size_t nLocus(3 + (N_SA+N_SC)*2); // sex_det / recomb / expression / loc_xp_ntrl / genicV_ntrl / etc ...
 	const float mutation_rate( (nLocus-1) * 0.00001); // mutation_rate = nLocus x proba_of_mutation_of_a_locus
-	const float recombination_rate( (nLocus-1) * 0.00001); // mutation_rate = nLocus x proba_of_mutation_of_a_locus
+	const float inversion_rate(0.00001);
 
 	std::vector <float> param_fitness;
 	// optimal level of expression of a gene in a sex:
@@ -65,13 +67,13 @@ int main(int argc, char* argv[]){
 	initiate_pop(pop, N_diplo, N_SA, N_SC);
 
 	for(generation=0; generation<nGenerations; ++generation){
-	/*	std::cout << "Generation: " << generation << std::endl;
-	std::cout << "Before: " << std::endl;
-	print_pop(pop, N_diplo, N_SA, N_SC);*/
-		evolve_pop(pop, N_diplo, N_reprod_males, N_SA, N_SC, param_fitness, mutation_rate, recombination_rate, nLocus);
-/*	std::cout <<  std::endl << "After: " << std::endl;
-	print_pop(pop, N_diplo, N_SA, N_SC);
-	std::cout << std::endl;*/
+//		std::cout << "Generation: " << generation << std::endl;
+//	std::cout << "Before: " << std::endl;
+//	print_pop(pop, N_diplo, N_SA, N_SC);
+		evolve_pop(pop, N_diplo, N_reprod_males, N_SA, N_SC, param_fitness, mutation_rate, inversion_rate, nLocus);
+//	std::cout <<  std::endl << "After: " << std::endl;
+//	print_pop(pop, N_diplo, N_SA, N_SC);
+//	std::cout << std::endl;
 	}	
 
 	return(0);
@@ -252,7 +254,7 @@ void print_pop(std::vector < std::vector < std::vector < float >>> & pop, const 
 }
 
 
-void evolve_pop(std::vector < std::vector < std::vector < float >>> & pop, const unsigned int & N_diplo, const unsigned int & N_reprod_males, const unsigned int & N_SA, const unsigned int & N_SC, const std::vector <float> & param_fitness, const float & mutation_rate, const float & recombination_rate, const size_t & nLocus){
+void evolve_pop(std::vector < std::vector < std::vector < float >>> & pop, const unsigned int & N_diplo, const unsigned int & N_reprod_males, const unsigned int & N_SA, const unsigned int & N_SC, const std::vector <float> & param_fitness, const float & mutation_rate, const float & inversion_rate, const size_t & nLocus){
 	std::vector <size_t> males;
 	std::vector <size_t> females;
 	std::vector <size_t> fathers;
@@ -273,7 +275,7 @@ void evolve_pop(std::vector < std::vector < std::vector < float >>> & pop, const
 	get_mothers(mothers, females, female_fitness, N_diplo);
 	get_fathers(fathers, males, male_fitness, N_diplo, N_reprod_males);
 	
-	make_babies(fathers, mothers, pop, new_pop, N_diplo, mutation_rate, recombination_rate, nLocus);
+	make_babies(fathers, mothers, pop, new_pop, N_diplo, mutation_rate, inversion_rate, nLocus);
 
 /*	std::cout << "New pop: " << new_pop[0][0][2] << std::endl;	
 	std::cout << pop[0][0][2] << " -Pop- ";	
@@ -565,44 +567,132 @@ void initiate_newPop(std::vector < std::vector < std::vector < float >>> & new_p
 }
 
 
-void make_babies(const std::vector <size_t> & fathers, const std::vector <size_t> & mothers, std::vector < std::vector < std::vector < float >>> & pop, std::vector < std::vector < std::vector < float >>> & new_pop, const unsigned int & N_diplo, const float & mutation_rate, const float & recombination_rate, const size_t & nLocus){
+void make_babies(const std::vector <size_t> & fathers, const std::vector <size_t> & mothers, std::vector < std::vector < std::vector < float >>> & pop, std::vector < std::vector < std::vector < float >>> & new_pop, const unsigned int & N_diplo, const float & mutation_rate, const float & inversion_rate, const size_t & nLocus){
 	size_t i(0);
 	int gamete_id(0);
 
 	int test_mutation(0);
 	int test_recombination(0);
+	int test_inversion(0);
+
 	size_t pos_recombination(0);
 
-	std::vector <float> haplotype;
+	std::vector <float> gamete;
 
 	std::uniform_int_distribution<> distribution_uniform(0, 1); // chose one of the two possible gametes
 	std::binomial_distribution<int> distribution(1, mutation_rate); // test if there is a mutation event along the gamete
+	std::binomial_distribution<int> distribution_inversion(1, inversion_rate);
 
-	for(i=0; i<N_diplo; ++i){
-		// within father
-		is_recombination(recombination_rate, test_recombination, pos_recombination, nLocus);
-		gamete_id = distribution_uniform(rng);	
-		new_pop[i][0] = pop[fathers[i]][gamete_id];
-		
-		// within mother
+	for(i=0; i<N_diplo; ++i){ // loop over parents: gametogenese (recombination + mutation) and then fertilization
+		////////////
+		// father //
+		////////////
+		// sampling among 2 haplotypes for a diploid
 		gamete_id = distribution_uniform(rng);
-		new_pop[i][1] = pop[mothers[i]][gamete_id];
+
+		// recombination
+		is_recombination(pop[fathers[i]][0][1]*pop[fathers[i]][1][1], test_recombination, pos_recombination, nLocus); // first arg = r1.r2 (product of recombination rates coded by the 2 haplotypes)
+
+		if( test_recombination ){ // if recombination occurs
+			recombination(pop[fathers[i]], pos_recombination, gamete_id, gamete); // recombination
+		}else{
+			gamete = pop[fathers[i]][gamete_id]; // no recombination
+		}
+
+		// inversion of the Y chromosome
+		test_inversion = distribution_inversion(rng);
+		if( test_inversion ){
+			if(gamete[0]==1){ gamete[1]=0; }
+		}
+
+		// mutation
+		test_mutation = distribution(rng);
+		if( test_mutation ){ // if mutation occurs
+			mutation(gamete, nLocus);
+		}
+		new_pop[i][0] = gamete;
+		
+		gamete.clear();
+
+
+		////////////
+		// mother //
+		////////////
+		// sampling among 2 haplotypes for a diploid
+		gamete_id = distribution_uniform(rng);
+
+		// recombination
+		is_recombination(pop[mothers[i]][0][1]*pop[mothers[i]][1][1], test_recombination, pos_recombination, nLocus); // first arg = r1.r2 (product of recombination rates coded by the 2 haplotypes)
+
+		if( test_recombination ){
+			recombination(pop[mothers[i]], pos_recombination, gamete_id, gamete); // recombination
+		}else{
+			gamete = pop[mothers[i]][gamete_id];
+		}
+
+		// mutation
+		test_mutation = distribution(rng);
+		if( test_mutation ){ // if mutation occurs
+			mutation(gamete, nLocus);
+		}
+		new_pop[i][1] = gamete;
+
+		gamete.clear();
+
+
 	}
 
 	for(i=0; i<N_diplo; ++i){
 		pop[i] = new_pop[i];
 	}
+	new_pop.clear();
 }
 
 
 void is_recombination(const float & recombination_rate, int & test_recombination, size_t & pos_recombination, const size_t & nLocus){
+	/* returns:
+		1) test_recombination (0 or 1): 0 if no recombination; 1 if recombination occured
+		2) pos_recombination (an even integer): 0 if it occured before the neutral "locExp - GenicValue", 2 before the first locus, 4 ...
+							has to be converted for taking into account the i) sex det, ii) recombination and
+							iii) global expression loci. In the current version, such conversion only requires to 
+							add +3 to the returned pos_recombination value.
+	*/	
 	std::binomial_distribution<int> distribution(1, recombination_rate); // test if there is a recomb event along the gamete
 	test_recombination = distribution(rng);
 	
 	if( test_recombination == 1 ){
-		std::uniform_int_distribution<> distribution_position_locus(0, (nLocus-3)/2 - 1); // chose one of the two possible gametes
-		pos_recombination =  distribution_position_locus(rng);
-		std::cout << "recombination before locus " << pos_recombination << std::endl;
+		std::uniform_int_distribution<> distribution_position_locus(0, (nLocus-3)/4 - 1); // chose one of the two possible gametes
+		pos_recombination =  2*distribution_position_locus(rng);
 	}
+}
+
+
+void recombination(const std::vector < std::vector <float >> & father, const size_t & pos_recombination, const int & gamete_id, std::vector <float> & gamete){
+	assert( father.size() == 2 );
+	
+	size_t i(0);
+
+	for( i=0; i<father[0].size(); ++i ){
+		if( i<=pos_recombination ){
+			gamete.push_back( father[gamete_id][i] );
+		}else{
+			gamete.push_back( father[std::abs(1-gamete_id)][i] );
+		}
+	}
+}
+
+
+void mutation(std::vector <float> & gamete, const size_t & nLocus){
+	std::uniform_int_distribution<> distribution_position_locus(1, nLocus-1); // chose one of the two possible gametes
+	std::uniform_real_distribution<float> distribution_mutationEffect(0, 1);
+	
+	const int mutated_locus(distribution_position_locus(rng));	
+		
+//	std::cout << "locus " << mutated_locus << " : before mutation (" << gamete[mutated_locus] << "),";
+
+	gamete[mutated_locus] = distribution_mutationEffect(rng) ;
+
+//	std::cout << "\tafter mutation(" << gamete[mutated_locus] << ")" <<  std::endl;
+	
 }
 
