@@ -3,7 +3,7 @@
 g++ sexSpe.cpp -std=c++17 -O3 -o sexSpe  
   
 ## execution  
-./sexSpe 1000 10 10 500 50  
+./sexSpe 1000 10 10 500 50 run_test   
 
 ### arguments   
 **arg1**: number of diploid individuals in the population (__integer__)  
@@ -11,6 +11,7 @@ g++ sexSpe.cpp -std=c++17 -O3 -o sexSpe
 **arg3**: number of loci under **S**exually **C**oncordant selection (__integer__)  
 **arg4**: number of generations (__integer__)  
 **arg5**: number of reproductive males (__integer__)   
+**arg6**: name for the output file (__string of caracters__)   
   
 ### TODO  
 At that time, mutation rate is hard-coded and equal to **nLocus x 0.00001**  
