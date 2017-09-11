@@ -15,7 +15,7 @@ static std::mt19937 rng(rd());
 
 void initiate_pop(std::vector < std::vector < std::vector < float >>> & pop, const unsigned int & N_diplo, const unsigned int & N_SA, const unsigned int & N_SC);
 void initiate_newPop(std::vector < std::vector < std::vector < float >>> & new_pop, const unsigned int & N_diplo);
-void evolve_pop(std::vector < std::vector < std::vector < float >>> & pop, const unsigned int & N_diplo, const unsigned int & N_reprod_males, const unsigned int & N_SA, const unsigned int & N_SC, const std::vector <float> & param_fitness, const float & mutation_rate, const float & inversion_rate, const size_t & nLocus);
+void evolve_pop(std::vector < std::vector < std::vector < float >>> & pop, const unsigned int & N_diplo, const unsigned int & N_reprod_males, const unsigned int & N_SA, const unsigned int & N_SC, const std::vector <float> & param_fitness, const float & mutation_rate, const float & inversion_rate, const size_t & nLocus, const std::string & name, const size_t & generation, const size_t & nGenerations);
 void print_pop(std::vector < std::vector < std::vector < float >>> & pop, const unsigned int & N_diplo, const unsigned int & N_SA, const unsigned int & N_SC);
 void get_sexes(const std::vector < std::vector < std::vector < float >>> & pop, std::vector <size_t> & sexes, std::vector <size_t> & males, std::vector <size_t> & females);
 void get_fitness(const std::vector < std::vector < std::vector <float>>> & pop, const std::vector <size_t> & males, const std::vector <size_t> & females, std::vector <float> & male_fitness, std::vector <float> & female_fitness, const unsigned int & N_diplo, const unsigned int & N_SA, const unsigned int & N_SC, const std::vector <float> & param_fitness);
@@ -30,6 +30,8 @@ void recombination(const std::vector < std::vector <float >> & father, const siz
 void mutation(std::vector <float> & gamete, const size_t & nLocus);
 void write_results(const std::vector < std::vector < std::vector <float>>> & pop, const unsigned & N_diplo, const size_t & generation, const std::string & name, const unsigned int & N_SA, const unsigned int & N_SC, const bool & header);
 
+void writeSummary(const std::vector < std::vector < std::vector <float>>> & pop, const std::vector <float> & male_fitness, const std::vector <float> & female_fitness, const std::vector <size_t> & sexes, const unsigned int & N_diplo, const unsigned int & N_SA, const unsigned int & N_SC);
+float mean(const std::vector <float> & x);
 
 int main(int argc, char* argv[]){
 	const unsigned int N_diplo(std::stoi(argv[1]));
@@ -41,7 +43,7 @@ int main(int argc, char* argv[]){
 
 	const size_t nLocus(3 + (1+N_SA+N_SC)*2); // sex_det / recomb / expression / loc_xp_ntrl / genicV_ntrl / etc ...
 	const float mutation_rate( (nLocus-1) * 0.00001); // mutation_rate = nLocus x proba_of_mutation_of_a_locus
-	const float inversion_rate(0.00001);
+	const float inversion_rate(0.0001);
 
 	std::vector <float> param_fitness;
 	// optimal level of expression of a gene in a sex:
@@ -69,11 +71,8 @@ int main(int argc, char* argv[]){
 	initiate_pop(pop, N_diplo, N_SA, N_SC);
 	write_results(pop, N_diplo, generation, name, N_SA, N_SC, true);
 
-	for(generation=0; generation<nGenerations; ++generation){
-		evolve_pop(pop, N_diplo, N_reprod_males, N_SA, N_SC, param_fitness, mutation_rate, inversion_rate, nLocus);
-		if( generation%200 == 0 || generation==(nGenerations-1) ){
-			write_results(pop, N_diplo, generation, name, N_SA, N_SC, false);
-		}
+	for(generation=0; generation<=nGenerations; ++generation){
+		evolve_pop(pop, N_diplo, N_reprod_males, N_SA, N_SC, param_fitness, mutation_rate, inversion_rate, nLocus, name, generation, nGenerations);
 	}	
 
 	return(0);
@@ -158,7 +157,7 @@ void print_pop(std::vector < std::vector < std::vector < float >>> & pop, const 
 }
 
 
-void evolve_pop(std::vector < std::vector < std::vector < float >>> & pop, const unsigned int & N_diplo, const unsigned int & N_reprod_males, const unsigned int & N_SA, const unsigned int & N_SC, const std::vector <float> & param_fitness, const float & mutation_rate, const float & inversion_rate, const size_t & nLocus){
+void evolve_pop(std::vector < std::vector < std::vector < float >>> & pop, const unsigned int & N_diplo, const unsigned int & N_reprod_males, const unsigned int & N_SA, const unsigned int & N_SC, const std::vector <float> & param_fitness, const float & mutation_rate, const float & inversion_rate, const size_t & nLocus, const std::string & name, const size_t & generation, const size_t & nGenerations){
 	std::vector <size_t> males;
 	std::vector <size_t> females;
 	std::vector <size_t> fathers;
@@ -171,15 +170,22 @@ void evolve_pop(std::vector < std::vector < std::vector < float >>> & pop, const
 	initiate_newPop(new_pop, N_diplo);
 
 	get_sexes(pop, sexes, males, females);
-	assert( males.size() != 0);
-	assert( females.size() != 0);
+	assert( males.size() != 0 ); // There is no male in the population"
+	assert( females.size() != 0 ); // There is no female in the population"
 
 	get_fitness(pop, males, females, male_fitness, female_fitness, N_diplo, N_SA, N_SC, param_fitness);
+	
+	writeSummary(pop, male_fitness, female_fitness, sexes, N_diplo, N_SA, N_SC);
 	
 	get_mothers(mothers, females, female_fitness, N_diplo);
 	get_fathers(fathers, males, male_fitness, N_diplo, N_reprod_males);
 	
 	make_babies(fathers, mothers, pop, new_pop, N_diplo, mutation_rate, inversion_rate, nLocus);
+
+	if( generation%200 == 0 || generation==nGenerations ){
+		write_results(pop, N_diplo, generation, name, N_SA, N_SC, false);
+	}
+
 
 	males.clear();
 	females.clear();
@@ -379,8 +385,8 @@ void sampling(const std::vector <float> & weights, const unsigned int & nSamples
 	arg 3: vector of results to 'return'
 	arg 4: boolean. If 'false', then sampling without replacement. If 'true', then sampling with replacement
         */
-	if( !replace ){
-		assert(nSamples <= weights.size());
+	if( !replace ){ // without replacement
+		assert(nSamples <= weights.size());// The number of elements to sample is bigger than the urn;
 	}	
 	size_t i(0);
 	size_t j(0);
@@ -535,7 +541,7 @@ void is_recombination(const float & recombination_rate, int & test_recombination
 
 
 void recombination(const std::vector < std::vector <float >> & father, const size_t & pos_recombination, const int & gamete_id, std::vector <float> & gamete){
-	assert( father.size() == 2 );
+	assert( father.size() == 2 ); // The father is not diploid (?!?)
 	
 	size_t i(0);
 
@@ -611,4 +617,77 @@ void write_results(const std::vector < std::vector < std::vector <float>>> & pop
 		}
 	}	
 }
+
+
+void writeSummary(const std::vector < std::vector < std::vector <float>>> & pop, const std::vector <float> & male_fitness, const std::vector <float> & female_fitness, const std::vector <size_t> & sexes, const unsigned int & N_diplo, const unsigned int & N_SA, const unsigned int & N_SC){
+	// n_females / n_males_noInversion / n_males_inversion / recomb_females / recomb_males_noInversion / globExp_females / globExp_males_noInv / globExp_males_inv / fitness_females / fitness_males_noInv / fitness_males_inv
+	size_t i(0);
+	size_t nFem(0);
+	size_t nMal(0);
+	size_t nMal_noInv(0);
+	size_t nMal_inv(0);
+	std::vector <float> recomb_fem;
+	std::vector <float> recomb_malNoInv;
+	std::vector <float> globExp_fem;
+	std::vector <float> globExp_malNoInv;
+	std::vector <float> globExp_malInv;
+	std::vector <float> fitness_fem;
+	std::vector <float> fitness_malNoInv;
+	std::vector <float> fitness_malInv;
+
+	for(i=0; i<N_diplo; ++i){
+		if( sexes[i]==0 ){ // if females
+			recomb_fem.push_back(pop[i][0][1]*pop[i][1][1]);
+			globExp_fem.push_back(pop[i][0][2]);
+			globExp_fem.push_back(pop[i][1][2]);
+			fitness_fem.push_back(female_fitness[nFem]);
+			nFem++;
+		}else{
+			if( pop[i][0][1]*pop[i][1][1] == 0 ){
+				// males with inversion
+				nMal_inv++;
+				globExp_malInv.push_back(pop[i][0][2]);
+				fitness_malInv.push_back(male_fitness[i]);
+			}else{
+				// males without inversion
+				nMal_noInv++;
+				recomb_malNoInv.push_back(pop[i][0][1]*pop[i][1][1]);
+				globExp_malNoInv.push_back(pop[i][0][2]);
+				fitness_malNoInv.push_back(male_fitness[i]);
+			}
+		nMal++;
+		}
+	}
+
+	float recomb_fem_avg(mean(recomb_fem));
+	float recomb_malNoInv_avg(mean(recomb_malNoInv));
+	float globExp_fem_avg(mean(globExp_fem));
+	float globExp_malNoInv_avg(mean(globExp_malNoInv));
+	float globExp_malInv_avg(mean(globExp_malInv));
+	float fitness_fem_avg(mean(fitness_fem));
+	float fitness_malNoInv_avg(mean(fitness_malNoInv));
+	float fitness_malInv_avg(mean(fitness_malInv));
+	
+	std::cout << nFem << " " << nMal_noInv << " " << nMal_inv << " ";
+	std::cout << recomb_fem_avg << " " << recomb_malNoInv_avg << " ";
+	std::cout << globExp_fem_avg << " " << globExp_malNoInv_avg << " " << globExp_malInv_avg << " ";
+	std::cout << fitness_fem_avg << " " << fitness_malNoInv_avg << " " << fitness_malInv_avg << std::endl;
+}
+
+
+float mean(const std::vector <float> & x){
+	float res(0.0);
+	size_t i(0);
+	const size_t N_obs(x.size());
+
+	if(N_obs < 10){
+		return(0.0);
+	}else{	
+		for(i=0; i<N_obs; ++i){
+			res += x[i];
+		}
+		return(res/N_obs);
+	}
+}
+
 
