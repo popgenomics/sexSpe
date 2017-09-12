@@ -30,7 +30,7 @@ void recombination(const std::vector < std::vector <float >> & father, const siz
 void mutation(std::vector <float> & gamete, const size_t & nLocus);
 void write_results(const std::vector < std::vector < std::vector <float>>> & pop, const unsigned & N_diplo, const size_t & generation, const std::string & name, const unsigned int & N_SA, const unsigned int & N_SC, const bool & header);
 
-void writeSummary(const std::vector < std::vector < std::vector <float>>> & pop, const std::vector <float> & male_fitness, const std::vector <float> & female_fitness, const std::vector <size_t> & sexes, const unsigned int & N_diplo, const unsigned int & N_SA, const unsigned int & N_SC);
+void writeSummary(const std::vector < std::vector < std::vector <float>>> & pop, const std::vector <float> & male_fitness, const std::vector <float> & female_fitness, const std::vector <size_t> & sexes, const unsigned int & N_diplo, const unsigned int & N_SA, const unsigned int & N_SC, const size_t & generation);
 float mean(const std::vector <float> & x);
 
 int main(int argc, char* argv[]){
@@ -42,8 +42,8 @@ int main(int argc, char* argv[]){
 	const std::string name(argv[6]);
 
 	const size_t nLocus(3 + (1+N_SA+N_SC)*2); // sex_det / recomb / expression / loc_xp_ntrl / genicV_ntrl / etc ...
-	const float mutation_rate( (nLocus-1) * 0.00001); // mutation_rate = nLocus x proba_of_mutation_of_a_locus
-	const float inversion_rate(0.0001);
+	const float mutation_rate( (nLocus-1) * 0.001); // mutation_rate = nLocus x proba_of_mutation_of_a_locus
+	const float inversion_rate(0);
 
 	std::vector <float> param_fitness;
 	// optimal level of expression of a gene in a sex:
@@ -175,15 +175,14 @@ void evolve_pop(std::vector < std::vector < std::vector < float >>> & pop, const
 
 	get_fitness(pop, males, females, male_fitness, female_fitness, N_diplo, N_SA, N_SC, param_fitness);
 	
-	writeSummary(pop, male_fitness, female_fitness, sexes, N_diplo, N_SA, N_SC);
-	
 	get_mothers(mothers, females, female_fitness, N_diplo);
 	get_fathers(fathers, males, male_fitness, N_diplo, N_reprod_males);
 	
 	make_babies(fathers, mothers, pop, new_pop, N_diplo, mutation_rate, inversion_rate, nLocus);
-
+	
 	if( generation%200 == 0 || generation==nGenerations ){
-		write_results(pop, N_diplo, generation, name, N_SA, N_SC, false);
+		writeSummary(pop, male_fitness, female_fitness, sexes, N_diplo, N_SA, N_SC, generation);
+//		write_results(pop, N_diplo, generation, name, N_SA, N_SC, false);
 	}
 
 
@@ -619,41 +618,123 @@ void write_results(const std::vector < std::vector < std::vector <float>>> & pop
 }
 
 
-void writeSummary(const std::vector < std::vector < std::vector <float>>> & pop, const std::vector <float> & male_fitness, const std::vector <float> & female_fitness, const std::vector <size_t> & sexes, const unsigned int & N_diplo, const unsigned int & N_SA, const unsigned int & N_SC){
+void writeSummary(const std::vector < std::vector < std::vector <float>>> & pop, const std::vector <float> & male_fitness, const std::vector <float> & female_fitness, const std::vector <size_t> & sexes, const unsigned int & N_diplo, const unsigned int & N_SA, const unsigned int & N_SC, const size_t & generation){
 	// n_females / n_males_noInversion / n_males_inversion / recomb_females / recomb_males_noInversion / globExp_females / globExp_males_noInv / globExp_males_inv / fitness_females / fitness_males_noInv / fitness_males_inv
 	size_t i(0);
+	size_t j(0);
+
 	size_t nFem(0);
 	size_t nMal(0);
 	size_t nMal_noInv(0);
 	size_t nMal_inv(0);
+
 	std::vector <float> recomb_fem;
 	std::vector <float> recomb_malNoInv;
-	std::vector <float> globExp_fem;
-	std::vector <float> globExp_malNoInv;
-	std::vector <float> globExp_malInv;
+	
 	std::vector <float> fitness_fem;
 	std::vector <float> fitness_malNoInv;
 	std::vector <float> fitness_malInv;
+	
+	std::vector <float> globExp_X;
+	std::vector <float> globExp_Y_noInv;
+	std::vector <float> globExp_Y_inv;
 
+	std::vector <float> ntrl_local_xp_X;
+	std::vector <float> ntrl_genic_X;
+	std::vector <float> SA_local_xp_X;
+	std::vector <float> SA_genic_X;
+	std::vector <float> SC_local_xp_X;
+	std::vector <float> SC_genic_X;
+	
+	std::vector <float> ntrl_local_xp_Y_noInv;
+	std::vector <float> ntrl_genic_Y_noInv;
+	std::vector <float> SA_local_xp_Y_noInv;
+	std::vector <float> SA_genic_Y_noInv;
+	std::vector <float> SC_local_xp_Y_noInv;
+	std::vector <float> SC_genic_Y_noInv;
+
+	std::vector <float> ntrl_local_xp_Y_inv;
+	std::vector <float> ntrl_genic_Y_inv;
+	std::vector <float> SA_local_xp_Y_inv;
+	std::vector <float> SA_genic_Y_inv;
+	std::vector <float> SC_local_xp_Y_inv;
+	std::vector <float> SC_genic_Y_inv;
+	
 	for(i=0; i<N_diplo; ++i){
 		if( sexes[i]==0 ){ // if females
+			fitness_fem.push_back(female_fitness[nFem]);	
 			recomb_fem.push_back(pop[i][0][1]*pop[i][1][1]);
-			globExp_fem.push_back(pop[i][0][2]);
-			globExp_fem.push_back(pop[i][1][2]);
-			fitness_fem.push_back(female_fitness[nFem]);
+			globExp_X.push_back(pop[i][0][2]);		globExp_X.push_back(pop[i][1][2]);
+			ntrl_local_xp_X.push_back(pop[i][0][3]);	ntrl_local_xp_X.push_back(pop[i][1][3]);
+			ntrl_genic_X.push_back(pop[i][0][4]);		ntrl_genic_X.push_back(pop[i][1][4]);
+			
+			for(j=0; j<N_SA; ++j){
+				SA_local_xp_X.push_back( pop[i][0][5 + 2*j]);	SA_local_xp_X.push_back( pop[i][1][5 + 2*j]);
+				SA_genic_X.push_back( pop[i][0][6 + 2*j]);	SA_genic_X.push_back( pop[i][1][6 + 2*j]);
+			}
+			
+			for(j=0; j<N_SC; ++j){
+				SC_local_xp_X.push_back( pop[i][0][5 + 2*N_SA + 2*j]);	SC_local_xp_X.push_back( pop[i][1][5 + 2*N_SA + 2*j]);
+				SC_genic_X.push_back( pop[i][0][6 + 2*N_SA + 2*j]);	SC_genic_X.push_back( pop[i][1][6 + 2*N_SA + 2*j]);
+			}
+			
 			nFem++;
 		}else{
 			if( pop[i][0][1]*pop[i][1][1] == 0 ){
 				// males with inversion
 				nMal_inv++;
-				globExp_malInv.push_back(pop[i][0][2]);
 				fitness_malInv.push_back(male_fitness[i]);
+			
+				globExp_Y_inv.push_back(pop[i][0][2]);
+				globExp_X.push_back(pop[i][1][2]);
+
+				ntrl_local_xp_Y_noInv.push_back(pop[i][0][3]);
+				ntrl_genic_Y_noInv.push_back(pop[i][0][4]);
+
+				for(j=0; j<N_SA; ++j){
+					SA_local_xp_Y_inv.push_back( pop[i][0][5 + 2*j]);
+					SA_local_xp_X.push_back( pop[i][1][5 + 2*j]);
+					
+					SA_genic_Y_inv.push_back( pop[i][0][6 + 2*j]);
+					SA_genic_X.push_back( pop[i][1][6 + 2*j]);
+				}
+				
+				for(j=0; j<N_SC; ++j){
+					SC_local_xp_Y_inv.push_back( pop[i][0][5 + 2*N_SA + 2*j]);
+					SC_local_xp_X.push_back( pop[i][1][5 + 2*N_SA + 2*j]);
+					
+					SC_genic_Y_inv.push_back( pop[i][0][6 + 2*N_SA + 2*j]);
+					SC_genic_X.push_back( pop[i][1][6 + 2*N_SA + 2*j]);
+				}
+			
+
 			}else{
 				// males without inversion
 				nMal_noInv++;
-				recomb_malNoInv.push_back(pop[i][0][1]*pop[i][1][1]);
-				globExp_malNoInv.push_back(pop[i][0][2]);
 				fitness_malNoInv.push_back(male_fitness[i]);
+				recomb_malNoInv.push_back(pop[i][0][1]*pop[i][1][1]);
+			
+				globExp_Y_noInv.push_back(pop[i][0][2]);
+				globExp_X.push_back(pop[i][1][2]);
+
+				ntrl_local_xp_Y_noInv.push_back(pop[i][0][3]);
+				ntrl_genic_Y_noInv.push_back(pop[i][0][4]);
+				
+				for(j=0; j<N_SA; ++j){
+					SA_local_xp_Y_noInv.push_back( pop[i][0][5 + 2*j]);
+					SA_local_xp_X.push_back( pop[i][1][5 + 2*j]);
+					
+					SA_genic_Y_noInv.push_back( pop[i][0][6 + 2*j]);
+					SA_genic_X.push_back( pop[i][1][6 + 2*j]);
+				}
+				
+				for(j=0; j<N_SC; ++j){
+					SC_local_xp_Y_noInv.push_back( pop[i][0][5 + 2*N_SA + 2*j]);
+					SC_local_xp_X.push_back( pop[i][1][5 + 2*N_SA + 2*j]);
+					
+					SC_genic_Y_noInv.push_back( pop[i][0][6 + 2*N_SA + 2*j]);
+					SC_genic_X.push_back( pop[i][1][6 + 2*N_SA + 2*j]);
+				}
 			}
 		nMal++;
 		}
@@ -661,17 +742,61 @@ void writeSummary(const std::vector < std::vector < std::vector <float>>> & pop,
 
 	float recomb_fem_avg(mean(recomb_fem));
 	float recomb_malNoInv_avg(mean(recomb_malNoInv));
-	float globExp_fem_avg(mean(globExp_fem));
-	float globExp_malNoInv_avg(mean(globExp_malNoInv));
-	float globExp_malInv_avg(mean(globExp_malInv));
+
 	float fitness_fem_avg(mean(fitness_fem));
 	float fitness_malNoInv_avg(mean(fitness_malNoInv));
 	float fitness_malInv_avg(mean(fitness_malInv));
 	
+	float globExp_X_avg(mean(globExp_X));
+	float globExp_Y_noInv_avg(mean(globExp_Y_noInv));
+	float globExp_Y_inv_avg(mean(globExp_Y_inv));
+
+	float ntrl_local_xp_X_avg(mean(ntrl_local_xp_X));
+	float ntrl_genic_X_avg(mean(ntrl_genic_X));
+	float SA_local_xp_X_avg(mean(SA_local_xp_X));
+	float SA_genic_X_avg(mean(SA_genic_X));
+	float SC_local_xp_X_avg(mean(SC_local_xp_X));
+	float SC_genic_X_avg(mean(SC_genic_X));
+	
+	float ntrl_local_xp_Y_inv_avg(mean(ntrl_local_xp_Y_inv));
+	float ntrl_genic_Y_inv_avg(mean(ntrl_genic_Y_inv));
+	float SA_local_xp_Y_inv_avg(mean(SA_local_xp_Y_inv));
+	float SA_genic_Y_inv_avg(mean(SA_genic_Y_inv));
+	float SC_local_xp_Y_inv_avg(mean(SC_local_xp_Y_inv));
+	float SC_genic_Y_inv_avg(mean(SC_genic_Y_inv));
+
+	float ntrl_local_xp_Y_noInv_avg(mean(ntrl_local_xp_Y_noInv));
+	float ntrl_genic_Y_noInv_avg(mean(ntrl_genic_Y_noInv));
+	float SA_local_xp_Y_noInv_avg(mean(SA_local_xp_Y_noInv));
+	float SA_genic_Y_noInv_avg(mean(SA_genic_Y_noInv));
+	float SC_local_xp_Y_noInv_avg(mean(SC_local_xp_Y_noInv));
+	float SC_genic_Y_noInv_avg(mean(SC_genic_Y_noInv));
+
+	if( generation==0 ){
+		std::cout << "generation ";
+		std::cout << "nFem nMal_noInv nMal_inv ";
+		std::cout << "recomb_fem_avg recomb_malNoInv_avg ";
+		std::cout << "globExp_X_avg globExp_Y_noInv_avg globExp_Y_inv_avg ";
+		std::cout << "fitness_fem_avg fitness_malNoInv_avg fitness_malInv_avg ";
+		std::cout << "ntrl_local_xp_X_avg ntrl_local_xp_Y_inv_avg ntrl_local_xp_Y_noInv_avg ";
+		std::cout << "ntrl_genic_X_avg ntrl_genic_Y_inv_avg ntrl_genic_Y_noInv_avg ";
+		std::cout << "SA_local_xp_X_avg SA_local_xp_Y_inv_avg SA_local_xp_Y_noInv_avg ";
+		std::cout << "SA_genic_X_avg SA_genic_Y_inv_avg SA_genic_Y_noInv_avg ";
+		std::cout << "SC_local_xp_X_avg SC_local_xp_Y_inv_avg SC_local_xp_Y_noInv_avg ";
+		std::cout << "SC_genic_X_avg SC_genic_Y_inv_avg SC_genic_Y_noInv_avg" << std::endl;
+	}
+
+	std::cout << generation << " ";
 	std::cout << nFem << " " << nMal_noInv << " " << nMal_inv << " ";
 	std::cout << recomb_fem_avg << " " << recomb_malNoInv_avg << " ";
-	std::cout << globExp_fem_avg << " " << globExp_malNoInv_avg << " " << globExp_malInv_avg << " ";
-	std::cout << fitness_fem_avg << " " << fitness_malNoInv_avg << " " << fitness_malInv_avg << std::endl;
+	std::cout << globExp_X_avg << " " << globExp_Y_noInv_avg << " " << globExp_Y_inv_avg << " ";
+	std::cout << fitness_fem_avg << " " << fitness_malNoInv_avg << " " << fitness_malInv_avg << " ";
+	std::cout << ntrl_local_xp_X_avg << " " << ntrl_local_xp_Y_inv_avg << " " << ntrl_local_xp_Y_noInv_avg << " ";
+	std::cout << ntrl_genic_X_avg << " " << ntrl_genic_Y_inv_avg << " " << ntrl_genic_Y_noInv_avg << " ";
+	std::cout << SA_local_xp_X_avg << " " << SA_local_xp_Y_inv_avg << " " << SA_local_xp_Y_noInv_avg << " ";
+	std::cout << SA_genic_X_avg << " " << SA_genic_Y_inv_avg << " " << SA_genic_Y_noInv_avg << " ";
+	std::cout << SC_local_xp_X_avg << " " << SC_local_xp_Y_inv_avg << " " << SC_local_xp_Y_noInv_avg << " ";
+	std::cout << SC_genic_X_avg << " " << SC_genic_Y_inv_avg << " " << SC_genic_Y_noInv_avg << std::endl;
 }
 
 
