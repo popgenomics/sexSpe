@@ -17,6 +17,7 @@ void initiate_pop(std::vector < std::vector < std::vector < float >>> & pop, con
 void initiate_newPop(std::vector < std::vector < std::vector < float >>> & new_pop, const unsigned int & N_diplo);
 void evolve_pop(std::vector < std::vector < std::vector < float >>> & pop, const unsigned int & N_diplo, const unsigned int & N_reprod_males, const unsigned int & N_SA, const unsigned int & N_SC, const std::vector <float> & param_fitness, const float & mutation_rate, const float & inversion_rate, const size_t & nLocus, const std::string & name, const size_t & generation, const size_t & nGenerations);
 void write_pop(std::vector < std::vector < std::vector < float >>> & pop, const unsigned int & N_diplo, const unsigned int & N_SA, const unsigned int & N_SC, const std::string & name, const size_t & generation);
+void write_pop_sum(std::vector < std::vector < std::vector < float >>> & pop, const unsigned int & N_diplo, const unsigned int & N_SA, const unsigned int & N_SC, const std::string & name, const size_t & generation);
 void get_sexes(const std::vector < std::vector < std::vector < float >>> & pop, std::vector <size_t> & sexes, std::vector <size_t> & males, std::vector <size_t> & females);
 void get_fitness(const std::vector < std::vector < std::vector <float>>> & pop, const std::vector <size_t> & males, const std::vector <size_t> & females, std::vector <float> & male_fitness, std::vector <float> & female_fitness, const unsigned int & N_diplo, const unsigned int & N_SA, const unsigned int & N_SC, const std::vector <float> & param_fitness);
 void get_fathers(std::vector <size_t> & fathers, const std::vector <size_t> & males, const std::vector <float> & male_fitness, const unsigned int & N_diplo, const unsigned int & N_reprod_males);
@@ -24,9 +25,9 @@ void get_mothers(std::vector <size_t> & mothers, const std::vector <size_t> & fe
 void sampling(const std::vector <float> & weights, const unsigned int & nSamples, std::vector <size_t> & sample, const bool & replace);
 size_t getSampledPosition(const std::vector <float> & urn);
 
-void make_babies(const std::vector <size_t> & fathers, const std::vector <size_t> & mothers, std::vector < std::vector < std::vector < float >>> & pop, std::vector < std::vector < std::vector < float >>> & new_pop, const unsigned int & N_diplo, const float & mutation_rate, const float & inversion_rate, const size_t & nLocus);
-void is_recombination(const float & recombination_rate, int & test_recombination, size_t & pos_recombination, const size_t & nLocus);
-void recombination(const std::vector < std::vector <float >> & father, const size_t & pos_recombination, const int & gamete_id, std::vector <float> & gamete);
+void make_babies(const std::vector <size_t> & fathers, const std::vector <size_t> & mothers, std::vector < std::vector < std::vector < float >>> & pop, std::vector < std::vector < std::vector < float >>> & new_pop, const unsigned int & N_diplo, const float & mutation_rate, const float & inversion_rate, const size_t & nLocus, const unsigned int & N_SA, const unsigned int & N_SC);
+void is_recombination(const float & recombination_rate, int & test_recombination, size_t & pos_recombination, const unsigned int & N_SA, const unsigned int & N_SC);
+void recombination(const std::vector < std::vector <float >> & parent, const size_t & pos_recombination, const int & gamete_id, std::vector <float> & gamete);
 void mutation(std::vector <float> & gamete, const size_t & nLocus);
 void write_results(const std::vector < std::vector < std::vector <float>>> & pop, const unsigned & N_diplo, const size_t & generation, const std::string & name, const unsigned int & N_SA, const unsigned int & N_SC, const bool & header);
 
@@ -41,7 +42,7 @@ int main(int argc, char* argv[]){
 	const unsigned int N_reprod_males(std::stoi(argv[5]));
 	const std::string name(argv[6]);
 
-	const size_t nLocus(3 + (1+N_SA+N_SC)*2); // sex_det / recomb / expression / loc_xp_ntrl / genicV_ntrl / etc ...
+	const size_t nLocus(4 + (1+N_SA+N_SC)*3); // sex_det / recomb / expression (male and female) / loc_xp_ntrl / genicV_ntrl / etc ...
 	const float mutation_rate( (nLocus-1) * 0.001); // mutation_rate = nLocus x proba_of_mutation_of_a_locus
 	const float inversion_rate(0.0001);
 
@@ -51,8 +52,8 @@ int main(int argc, char* argv[]){
 	const float e_f_opt(1.0); param_fitness.push_back(e_f_opt); // [1]
 	// optimum genic values:
 	// loci SA:
-	const float g_m_opt_SA(0.0); param_fitness.push_back(g_m_opt_SA); // [2]
-	const float g_f_opt_SA(1.0); param_fitness.push_back(g_f_opt_SA); // [3]
+	const float g_m_opt_SA(1.0); param_fitness.push_back(g_m_opt_SA); // [2]
+	const float g_f_opt_SA(0.0); param_fitness.push_back(g_f_opt_SA); // [3]
 	// loci SC:
 	const float g_m_opt_SC(0.5); param_fitness.push_back(g_m_opt_SC); // [4]
 	const float g_f_opt_SC(0.5); param_fitness.push_back(g_f_opt_SC); // [5]
@@ -97,8 +98,8 @@ void initiate_pop(std::vector < std::vector < std::vector < float >>> & pop, con
 	std::vector <float> haplotype;
 	std::vector < std::vector <float>> individual;
 
-	for( i=0; i<(3 + (1 + N_SA + N_SC)*2); ++i ){
-		haplotype.push_back(0);
+	for( i=0; i<(4 + (1 + N_SA + N_SC)*3); ++i ){
+		haplotype.push_back(0.0);
 	}
 
 	for( i=0; i<N_diplo; ++i ){
@@ -108,28 +109,32 @@ void initiate_pop(std::vector < std::vector < std::vector < float >>> & pop, con
 		}
 		for( j=0; j<2; ++j ){
 			if( i%2 == 0 ){
-				pop[i][0][0] = 0;
+				pop[i][0][0] = 0; // female
 				pop[i][1][0] = 0;
 				
 			}else{
-				pop[i][0][0] = 0;
-				pop[i][1][0] = 1;
+				pop[i][0][0] = 1; // male
+				pop[i][1][0] = 0;
 				
 			}
 
 			pop[i][j][1] = distribution_modifierRecomb(rng); // locus 2: modifier recomb
-			pop[i][j][2] = distribution_modifierExpression(rng); // locus 3: modifier global expression
-			pop[i][j][3] = distribution_locExpression(rng); // locus 4: local expression neutral locus
-			pop[i][j][4] = distribution_locGenicValue(rng); // locus 5: genic value neutral locus
+			pop[i][j][2] = distribution_modifierExpression(rng); // locus 3: modifier global expression (g_e_m)
+			pop[i][j][3] = distribution_modifierExpression(rng); // locus 3: modifier global expression (g_e_f)
+			pop[i][j][4] = distribution_locExpression(rng); // locus 4: local expression neutral locus (ntrl_loc_e_m)
+			pop[i][j][5] = distribution_locExpression(rng); // locus 4: local expression neutral locus (ntrl_loc_e_f)
+			pop[i][j][6] = distribution_locGenicValue(rng); // locus 5: genic value neutral locus
 			
 			for( k=0; k<N_SA; ++k){
-				pop[i][j][5 + (k*2)] = distribution_locExpression(rng);
-				pop[i][j][5 + (k*2 + 1)] = distribution_locGenicValue(rng);
+				pop[i][j][7 + (k*3)] = distribution_locExpression(rng);
+				pop[i][j][7 + (k*3 + 1)] = distribution_locExpression(rng);
+				pop[i][j][7 + (k*3 + 2)] = distribution_locGenicValue(rng);
 			}
 			
 			for( k=0; k<N_SC; ++k){
-				pop[i][j][5 + N_SA*2 + (k*2)] = distribution_locExpression(rng);
-				pop[i][j][5 + N_SA*2 + (k*2 + 1)] = distribution_locGenicValue(rng);
+				pop[i][j][7 + N_SA*3 + (k*3)] = distribution_locExpression(rng);
+				pop[i][j][7 + N_SA*3 + (k*3 + 1)] = distribution_locExpression(rng);
+				pop[i][j][7 + N_SA*3 + (k*3 + 2)] = distribution_locGenicValue(rng);
 			}
 		}
 	}
@@ -153,16 +158,107 @@ void write_pop(std::vector < std::vector < std::vector < float >>> & pop, const 
 		}
 		outputFlux << std::endl;
 		
-		// sex det 
-		for(i=0; i<(3 + (1+N_SA+N_SC)*2); ++i){
-			for(j=0; j<N_diplo; ++j){
-				for(k=0; k<2; ++k){
+		// haplotypes 
+		for(i=0; i<(4 + (1+N_SA+N_SC)*3); ++i){ // loop over loci
+			for(j=0; j<N_diplo; ++j){ // loop over individuals
+				for(k=0; k<2; ++k){ // loop over alleles
 					outputFlux << pop[j][k][i] << "\t";
 				}
 			}
 			outputFlux << std::endl;
 		}
 	outputFlux.close();
+	}else{
+		std::cerr <<  "ERROR: cannot open the file " << outfileName << std::endl;
+		exit(EXIT_FAILURE);
+	}
+}
+
+void write_pop_sum(std::vector < std::vector < std::vector < float >>> & pop, const unsigned int & N_diplo, const unsigned int & N_SA, const unsigned int & N_SC, const std::string & name, const size_t & generation){
+	std::string outfileName = std::string("population_") + name + ".txt";
+	if(generation == 0){
+		std::ofstream outputFlux(outfileName.c_str(), std::ios::out);
+		if( outputFlux ){
+			outputFlux << "generation\t";
+			outputFlux << "recomb_X\trecomb_Y\t";
+			outputFlux << "globXP_m_X\tglobXP_m_Y\tglobXP_f_X\tglobXP_f_Y\t";
+			outputFlux << "ntrl_XP_m_X\tntrl_XP_m_Y\tntrl_XP_f_X\tntrl_XP_f_Y\tntrl_val_X\tntrl_val_Y\t";
+			outputFlux << "SA_XP_m_X\tSA_XP_m_Y\tSA_XP_f_X\tSA_XP_f_Y\tSA_val_X\tSA_val_Y\t";
+			outputFlux << "SC_XP_m_X\tSC_XP_m_Y\tSC_XP_f_X\tSC_XP_f_Y\tSC_val_X\tSC_val_Y" << std::endl;
+			outputFlux.close();
+		}else{
+			std::cerr <<  "ERROR: cannot open the file " << outfileName << std::endl;
+			exit(EXIT_FAILURE);
+		}
+	}
+
+	std::ofstream outputFlux(outfileName.c_str(), std::ios::app);
+
+	if( outputFlux ){
+		size_t i(0);
+		size_t j(0);
+		size_t k(0);
+
+		std::vector <float> recomb_X; std::vector <float> recomb_Y;
+		std::vector <float> globXP_m_X; std::vector <float> globXP_m_Y; std::vector <float> globXP_f_X; std::vector <float> globXP_f_Y;
+		std::vector <float> ntrl_XP_m_X; std::vector <float> ntrl_XP_m_Y; std::vector <float> ntrl_XP_f_X; std::vector <float> ntrl_XP_f_Y; std::vector <float> ntrl_val_X; std::vector <float> ntrl_val_Y;
+		std::vector <float> SC_XP_m_X; std::vector <float> SC_XP_m_Y; std::vector <float> SC_XP_f_X; std::vector <float> SC_XP_f_Y; std::vector <float> SC_val_X; std::vector <float> SC_val_Y;
+		std::vector <float> SA_XP_m_X; std::vector <float> SA_XP_m_Y; std::vector <float> SA_XP_f_X; std::vector <float> SA_XP_f_Y; std::vector <float> SA_val_X; std::vector <float> SA_val_Y;
+		
+		for(i=0; i<N_diplo; ++i){
+			for(j=0; j<2; ++j){
+				if( pop[i][j][0]==1 ){ // if Y chromosome
+					recomb_Y.push_back(pop[i][j][1]);
+					globXP_m_Y.push_back(pop[i][j][2]);
+					globXP_f_Y.push_back(pop[i][j][3]);
+					ntrl_XP_m_Y.push_back(pop[i][j][4]);
+					ntrl_XP_f_Y.push_back(pop[i][j][5]);
+					ntrl_val_Y.push_back(pop[i][j][6]);
+					
+					for(k=0; k<N_SA; k++){
+						SA_XP_m_Y.push_back(pop[i][j][7 + 3*k]);
+						SA_XP_f_Y.push_back(pop[i][j][7 + 3*k + 1]);
+						SA_val_Y.push_back(pop[i][j][7  + 3*k + 2]);
+					}
+					
+					for(k=0; k<N_SC; k++){
+						SC_XP_m_Y.push_back(pop[i][j][7 + 3*(N_SA + k)]);
+						SC_XP_f_Y.push_back(pop[i][j][7 + 3*(N_SA + k) + 1]);
+						SC_val_Y.push_back(pop[i][j][7  + 3*(N_SA + k) + 2]);
+					}
+				}else{ // if X chromosome
+					recomb_X.push_back(pop[i][j][1]);
+					globXP_m_X.push_back(pop[i][j][2]);
+					globXP_f_X.push_back(pop[i][j][3]);
+					ntrl_XP_m_X.push_back(pop[i][j][4]);
+					ntrl_XP_f_X.push_back(pop[i][j][5]);
+					ntrl_val_X.push_back(pop[i][j][6]);
+					
+					for(k=0; k<N_SA; k++){
+						SA_XP_m_X.push_back(pop[i][j][7 + 3*k]);
+						SA_XP_f_X.push_back(pop[i][j][7 + 3*k + 1]);
+						SA_val_X.push_back(pop[i][j][7  + 3*k + 2]);
+					}
+					
+					for(k=0; k<N_SC; k++){
+						SC_XP_m_X.push_back(pop[i][j][7 + 3*(N_SA + k)]);
+						SC_XP_f_X.push_back(pop[i][j][7 + 3*(N_SA + k) + 1]);
+						SC_val_X.push_back(pop[i][j][7  + 3*(N_SA + k) + 2]);
+					}
+				}
+			} // end of loop ove haplotypes
+		} // end of loop over individuals
+
+	
+		outputFlux << generation << "\t";
+		outputFlux << mean(recomb_X) << "\t" << mean(recomb_Y) << "\t";
+		outputFlux << mean(globXP_m_X) << "\t" << mean(globXP_m_Y) << "\t" << mean(globXP_f_X) << "\t" << mean(globXP_f_Y) << "\t";
+		outputFlux << mean(ntrl_XP_m_X) << "\t" << mean(ntrl_XP_m_Y) << "\t" << mean(ntrl_XP_f_X) << "\t" << mean(ntrl_XP_f_Y) << "\t" << mean(ntrl_val_X) << "\t" << mean(ntrl_val_Y) << "\t";
+		outputFlux << mean(SA_XP_m_X) << "\t" << mean(SA_XP_m_Y) << "\t" << mean(SA_XP_f_X) << "\t" << mean(SA_XP_f_Y) << "\t" << mean(SA_val_X) << "\t" << mean(SA_val_Y) << "\t";
+		outputFlux << mean(SC_XP_m_X) << "\t" << mean(SC_XP_m_Y) << "\t" << mean(SC_XP_f_X) << "\t" << mean(SC_XP_f_Y) << "\t" << mean(SC_val_X) << "\t" << mean(SC_val_Y) << std::endl;
+
+		outputFlux.close();
+
 	}else{
 		std::cerr <<  "ERROR: cannot open the file " << outfileName << std::endl;
 		exit(EXIT_FAILURE);
@@ -191,11 +287,11 @@ void evolve_pop(std::vector < std::vector < std::vector < float >>> & pop, const
 	get_mothers(mothers, females, female_fitness, N_diplo);
 	get_fathers(fathers, males, male_fitness, N_diplo, N_reprod_males);
 	
-	make_babies(fathers, mothers, pop, new_pop, N_diplo, mutation_rate, inversion_rate, nLocus);
+	make_babies(fathers, mothers, pop, new_pop, N_diplo, mutation_rate, inversion_rate, nLocus, N_SA, N_SC);
 	
 	if( generation%100 == 0 || generation==nGenerations ){
-		write_pop(pop, N_diplo, N_SA, N_SC, name, generation);
-		write_summary(pop, male_fitness, female_fitness, sexes, N_diplo, N_SA, N_SC, generation);
+		write_pop_sum(pop, N_diplo, N_SA, N_SC, name, generation);
+//		write_summary(pop, male_fitness, female_fitness, sexes, N_diplo, N_SA, N_SC, generation);
 //		write_results(pop, N_diplo, generation, name, N_SA, N_SC, false);
 	}
 
@@ -279,30 +375,38 @@ void get_fitness(const std::vector < std::vector < std::vector <float>>> & pop, 
 		male_fitness: vector of size n_males. Entry == male fitness 
 		female_fitness: vector of size n_females. Entry == female fitness 
 	*/
+	// 0: sex det
+	// 1: global_recomb
+	// 2: global_expression in male
+	// 3: global_expression in female
+	// 4: local_expression in male
+	// 5: local_expression in female
+	// 6: genic value
+	// ...
 	
 	for(i=0; i<males.size(); ++i){ // loop over males
 		fitness = 1.0;
 		e_1_glob = pop[males[i]][0][2];
 		e_2_glob = pop[males[i]][1][2];
 		// loop over loci SA:
-		for(j=5; j<5+N_SA*2; j+= 2){
+		for(j=7; j<7+N_SA*3; j+= 3){ // j=7; j=10 (for N_SA=2)
 			e_1_sex = pop[males[i]][0][j] * e_1_glob;
 			e_2_sex = pop[males[i]][1][j] * e_2_glob;
 			e_tot_sex = e_1_sex + e_2_sex;
-			g_1 = pop[males[i]][0][j+1];
-			g_2 = pop[males[i]][1][j+1];
+			g_1 = pop[males[i]][0][j+2];
+			g_2 = pop[males[i]][1][j+2];
 			fitness *= exp(-1 * s_m_g * e_1_sex * pow(g_1 - g_m_opt_SA, 2));
 			fitness *= exp(-1 * s_m_g * e_2_sex * pow(g_2 - g_m_opt_SA, 2));
 			fitness *= exp(-1 * s_m_e * pow(e_tot_sex - e_m_opt, 2));
 		}
 		
 		// loop over loci SC:
-		for(j=5+N_SA*2; j<5+N_SA*2+N_SC*2; j+= 2){
+		for(j=7+N_SA*3; j<7+(N_SA+N_SC)*3; j+= 3){ //j=13; j=16; j=19 (for N_SA=2 and N_SC=3)
 			e_1_sex = pop[males[i]][0][j] * e_1_glob;
 			e_2_sex = pop[males[i]][1][j] * e_2_glob;
 			e_tot_sex = e_1_sex + e_2_sex;
-			g_1 = pop[males[i]][0][j+1];
-			g_2 = pop[males[i]][1][j+1];
+			g_1 = pop[males[i]][0][j+2];
+			g_2 = pop[males[i]][1][j+2];
 			fitness *= exp(-1 * s_m_g * e_1_sex * pow(g_1 - g_m_opt_SC, 2));
 			fitness *= exp(-1 * s_m_g * e_2_sex * pow(g_2 - g_m_opt_SC, 2));
 			fitness *= exp(-1 * s_m_e * pow(e_tot_sex - e_m_opt, 2));
@@ -312,27 +416,27 @@ void get_fitness(const std::vector < std::vector < std::vector <float>>> & pop, 
 
 	for(i=0; i<females.size(); ++i){ // loop over females
 		fitness = 1.0;
-		e_1_glob = pop[females[i]][0][2];
-		e_2_glob = pop[females[i]][1][2];
+		e_1_glob = pop[females[i]][0][3];
+		e_2_glob = pop[females[i]][1][3];
 		// loop over loci SA:
-		for(j=5; j<5+N_SA*2; j+= 2){
-			e_1_sex = pop[females[i]][0][j] * e_1_glob;
-			e_2_sex = pop[females[i]][1][j] * e_2_glob;
+		for(j=5; j<7+N_SA*3; j+= 3){
+			e_1_sex = pop[females[i]][0][j+1] * e_1_glob;
+			e_2_sex = pop[females[i]][1][j+1] * e_2_glob;
 			e_tot_sex = e_1_sex + e_2_sex;
-			g_1 = pop[females[i]][0][j+1];
-			g_2 = pop[females[i]][1][j+1];
+			g_1 = pop[females[i]][0][j+2];
+			g_2 = pop[females[i]][1][j+2];
 			fitness *= exp(-1 * s_f_g * e_1_sex * pow(g_1 - g_f_opt_SA, 2));
 			fitness *= exp(-1 * s_f_g * e_2_sex * pow(g_2 - g_f_opt_SA, 2));
 			fitness *= exp(-1 * s_f_e * pow(e_tot_sex - e_f_opt, 2));
 		}
 		
 		// loop over loci SC:
-		for(j=5+N_SA*2; j<5+N_SA*2+N_SC*2; j+= 2){
-			e_1_sex = pop[females[i]][0][j] * e_1_glob;
-			e_2_sex = pop[females[i]][1][j] * e_2_glob;
+		for(j=7+N_SA*3; j<7+(N_SA+N_SC)*3; j+= 3){
+			e_1_sex = pop[females[i]][0][j+1] * e_1_glob;
+			e_2_sex = pop[females[i]][1][j+1] * e_2_glob;
 			e_tot_sex = e_1_sex + e_2_sex;
-			g_1 = pop[females[i]][0][j+1];
-			g_2 = pop[females[i]][1][j+1];
+			g_1 = pop[females[i]][0][j+2];
+			g_2 = pop[females[i]][1][j+2];
 			fitness *= exp(-1 * s_f_g * e_1_sex * pow(g_1 - g_f_opt_SC, 2));
 			fitness *= exp(-1 * s_f_g * e_2_sex * pow(g_2 - g_f_opt_SC, 2));
 			fitness *= exp(-1 * s_f_e * pow(e_tot_sex - e_f_opt, 2));
@@ -453,7 +557,7 @@ void initiate_newPop(std::vector < std::vector < std::vector < float >>> & new_p
 }
 
 
-void make_babies(const std::vector <size_t> & fathers, const std::vector <size_t> & mothers, std::vector < std::vector < std::vector < float >>> & pop, std::vector < std::vector < std::vector < float >>> & new_pop, const unsigned int & N_diplo, const float & mutation_rate, const float & inversion_rate, const size_t & nLocus){
+void make_babies(const std::vector <size_t> & fathers, const std::vector <size_t> & mothers, std::vector < std::vector < std::vector < float >>> & pop, std::vector < std::vector < std::vector < float >>> & new_pop, const unsigned int & N_diplo, const float & mutation_rate, const float & inversion_rate, const size_t & nLocus, const unsigned int & N_SA, const unsigned int & N_SC){
 	size_t i(0);
 	int gamete_id(0);
 
@@ -477,7 +581,7 @@ void make_babies(const std::vector <size_t> & fathers, const std::vector <size_t
 		gamete_id = distribution_uniform(rng);
 
 		// recombination
-		is_recombination(pop[fathers[i]][0][1]*pop[fathers[i]][1][1], test_recombination, pos_recombination, nLocus); // first arg = r1.r2 (product of recombination rates coded by the 2 haplotypes)
+		is_recombination(pop[fathers[i]][0][1]*pop[fathers[i]][1][1], test_recombination, pos_recombination, N_SA, N_SC); // first arg = r1.r2 (product of recombination rates coded by the 2 haplotypes)
 
 		if( test_recombination ){ // if recombination occurs
 			recombination(pop[fathers[i]], pos_recombination, gamete_id, gamete); // recombination
@@ -508,7 +612,7 @@ void make_babies(const std::vector <size_t> & fathers, const std::vector <size_t
 		gamete_id = distribution_uniform(rng);
 
 		// recombination
-		is_recombination(pop[mothers[i]][0][1]*pop[mothers[i]][1][1], test_recombination, pos_recombination, nLocus); // first arg = r1.r2 (product of recombination rates coded by the 2 haplotypes)
+		is_recombination(pop[mothers[i]][0][1]*pop[mothers[i]][1][1], test_recombination, pos_recombination, N_SA, N_SC); // first arg = r1.r2 (product of recombination rates coded by the 2 haplotypes)
 
 		if( test_recombination ){
 			recombination(pop[mothers[i]], pos_recombination, gamete_id, gamete); // recombination
@@ -535,7 +639,7 @@ void make_babies(const std::vector <size_t> & fathers, const std::vector <size_t
 }
 
 
-void is_recombination(const float & recombination_rate, int & test_recombination, size_t & pos_recombination, const size_t & nLocus){
+void is_recombination(const float & recombination_rate, int & test_recombination, size_t & pos_recombination, const unsigned int & N_SA, const unsigned int & N_SC){
 	/* returns:
 		1) test_recombination (0 or 1): 0 if no recombination; 1 if recombination occured
 		2) pos_recombination (an even integer): 0 if it occured before the neutral "locExp - GenicValue", 2 before the first locus, 4 ...
@@ -547,22 +651,22 @@ void is_recombination(const float & recombination_rate, int & test_recombination
 	test_recombination = distribution(rng);
 	
 	if( test_recombination == 1 ){
-		std::uniform_int_distribution<> distribution_position_locus(0, (nLocus-3)/2);
-		pos_recombination =  2*distribution_position_locus(rng)+3;
+		std::uniform_int_distribution<> distribution_position_locus(0, N_SA+N_SC);
+		pos_recombination =  4 + 3*distribution_position_locus(rng);
 	}
 }
 
 
-void recombination(const std::vector < std::vector <float >> & father, const size_t & pos_recombination, const int & gamete_id, std::vector <float> & gamete){
-	assert( father.size() == 2 ); // The father is not diploid (?!?)
+void recombination(const std::vector < std::vector <float >> & parent, const size_t & pos_recombination, const int & gamete_id, std::vector <float> & gamete){
+	assert( parent.size() == 2 ); // The parent is not diploid (?!?)
 	
 	size_t i(0);
 
-	for( i=0; i<father[0].size(); ++i ){
-		if( i<=pos_recombination ){
-			gamete.push_back( father[gamete_id][i] );
+	for( i=0; i<parent[0].size(); ++i ){
+		if( i<pos_recombination ){
+			gamete.push_back( parent[gamete_id][i] );
 		}else{
-			gamete.push_back( father[std::abs(1-gamete_id)][i] );
+			gamete.push_back( parent[std::abs(1-gamete_id)][i] );
 		}
 	}
 }
@@ -573,18 +677,18 @@ void mutation(std::vector <float> & gamete, const size_t & nLocus){
 	const int mutated_locus(distribution_position_locus(rng));	
 
 	// version 1: mutation effect is randomly sampled in [0-1]	
-	std::uniform_real_distribution<float> distribution_mutationEffect(0, 1);
-	if(gamete[mutated_locus] != 0 ){	
-		gamete[mutated_locus] = distribution_mutationEffect(rng) ; // no restauration of a lost of function or inversion
-	}
+//	std::uniform_real_distribution<float> distribution_mutationEffect(0, 1);
+//	if(gamete[mutated_locus] != 0 ){	
+//		gamete[mutated_locus] = distribution_mutationEffect(rng) ; // no restauration of a lost of function or inversion
+//	}
 
 	// version 2: mutation effect is conditionated by the previous value. new_value = old_value x [0.9 - 1.1]
-/*	std::uniform_real_distribution<float> distribution_mutationEffect(0.9, 1.1);
+	std::uniform_real_distribution<float> distribution_mutationEffect(0.9, 1.1);
 	gamete[mutated_locus] = gamete[mutated_locus]*distribution_mutationEffect(rng);
 	if( gamete[mutated_locus]>1 ){
 		gamete[mutated_locus] = 1;
 	}
-*/
+
 }
 
 
